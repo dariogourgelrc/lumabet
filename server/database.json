@@ -1,0 +1,228 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Administrador",
+      "email": "admin@lumabet.com",
+      "password": "$2b$10$AJqBetRJ1pyGaNBMFRGVQO9vFvxRGZxbnUSi0idMbFs9EIGnrA5ae",
+      "balance": "01",
+      "isAdmin": true,
+      "createdAt": "2026-01-01T22:47:55.050Z"
+    },
+    {
+      "id": 2,
+      "name": "Dario Gourgel",
+      "email": "dariogourgel234@icloud.com",
+      "password": "$2b$10$06yrmBrIB3rx8RDKSNBZ8ex.Cnk6/pkhSbOPIkxYqjNoD2VHQ.MVy",
+      "balance": 0,
+      "isAdmin": false,
+      "createdAt": "2026-01-01T22:57:10.934Z"
+    }
+  ],
+  "transactions": [
+    {
+      "id": 1,
+      "userId": 1,
+      "type": "deposit",
+      "amount": 5000,
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-1-1767308001587",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T22:53:21.587Z",
+      "updatedAt": "2026-01-01T22:53:21.587Z"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "type": "deposit",
+      "amount": 2000,
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-2-1767308253632",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T22:57:33.632Z",
+      "updatedAt": "2026-01-01T22:57:33.632Z"
+    },
+    {
+      "id": 3,
+      "userId": 2,
+      "type": "deposit",
+      "amount": 2000,
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-3-1767308258199",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T22:57:38.199Z",
+      "updatedAt": "2026-01-01T22:57:38.199Z"
+    },
+    {
+      "id": 4,
+      "userId": 2,
+      "type": "deposit",
+      "amount": 2000,
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-4-1767308274063",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T22:57:54.062Z",
+      "updatedAt": "2026-01-01T22:57:54.063Z"
+    },
+    {
+      "id": 5,
+      "userId": 2,
+      "type": "deposit",
+      "amount": 2000,
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-5-1767308528514",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T23:02:08.513Z",
+      "updatedAt": "2026-01-01T23:02:08.514Z"
+    },
+    {
+      "id": 6,
+      "userId": 2,
+      "type": "deposit",
+      "amount": "100",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-6-1767308550398",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T23:02:30.398Z",
+      "updatedAt": "2026-01-01T23:02:30.398Z"
+    },
+    {
+      "id": 7,
+      "userId": 2,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-7-1767308694883",
+      "metadata": "{\"phoneNumber\":\"944391688\"}",
+      "createdAt": "2026-01-01T23:04:54.883Z",
+      "updatedAt": "2026-01-01T23:04:54.883Z"
+    },
+    {
+      "id": 8,
+      "userId": 2,
+      "type": "deposit",
+      "amount": "20",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-8-1767309363697",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:16:03.697Z",
+      "updatedAt": "2026-01-01T23:16:03.697Z"
+    },
+    {
+      "id": 9,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "5000",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-9-1767310221090",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:30:21.090Z",
+      "updatedAt": "2026-01-01T23:30:21.090Z"
+    },
+    {
+      "id": 10,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "10",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-10-1767310339082",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:32:19.082Z",
+      "updatedAt": "2026-01-01T23:32:19.082Z"
+    },
+    {
+      "id": 11,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-11-1767310565524",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:36:05.524Z",
+      "updatedAt": "2026-01-01T23:36:05.524Z"
+    },
+    {
+      "id": 12,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-12-1767310973421",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:42:53.421Z",
+      "updatedAt": "2026-01-01T23:42:53.421Z"
+    },
+    {
+      "id": 13,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-13-1767311273590",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:47:53.590Z",
+      "updatedAt": "2026-01-01T23:47:53.590Z"
+    },
+    {
+      "id": 14,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-14-1767311555749",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:52:35.749Z",
+      "updatedAt": "2026-01-01T23:52:35.749Z"
+    },
+    {
+      "id": 15,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "success",
+      "method": "mcx",
+      "paymentId": "PAY-15-1767311738296",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-01T23:55:38.296Z",
+      "updatedAt": "2026-01-01T23:56:12.854Z"
+    },
+    {
+      "id": 16,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "1",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-16-1767312296447",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-02T00:04:56.447Z",
+      "updatedAt": "2026-01-02T00:04:56.447Z"
+    },
+    {
+      "id": 17,
+      "userId": 1,
+      "type": "deposit",
+      "amount": "5000",
+      "status": "pending",
+      "method": "mcx",
+      "paymentId": "PAY-17-1767355665197",
+      "metadata": "{\"phoneNumber\":\"\"}",
+      "createdAt": "2026-01-02T12:07:45.197Z",
+      "updatedAt": "2026-01-02T12:07:45.197Z"
+    }
+  ]
+}
