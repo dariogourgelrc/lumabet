@@ -24,26 +24,27 @@ export async function initiatePayment(req, res) {
             metadata: { phoneNumber }
         });
 
-        // Use a shorter, more reliable ID for the payment gateway
-        const paymentId = transaction._id.toString();
+        // Create a shorter, more standard paymentId
+        const paymentId = transaction._id.toString().slice(-12).toUpperCase();
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build CulongaPay URL - Using most compatible Angolan parameter names
-        const rawUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
-        const backendUrl = rawUrl.replace(/\/$/, "");
+        // Build callback URL dynamically
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        const backendUrl = `${protocol}://${host}`;
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
-        console.log('Generating CulongaPay URL with callback:', callbackUrl);
+        console.log('--- INITIATING PAYMENT ---');
+        console.log('Amount:', amount);
+        console.log('Payment ID:', paymentId);
+        console.log('Callback URL:', callbackUrl);
 
-        // Standard Angolan Gateway Parameters: valor, url_callback, idCliente, idProduto
+        // Standard Parameters for CulongaPay
         const params = new URLSearchParams({
             token: '1224',
-            valor: amount.toString(), // Some use valor instead of preco
-            preco: amount.toString(), // Keep preco for compatibility
-            url_callback: callbackUrl, // Some use url_callback
-            callback: callbackUrl,    // Keep callback
-            url: callbackUrl,         // Some use url
+            valor: amount.toString(),
+            callback: callbackUrl,
             idCliente: userId,
             idProduto: paymentId
         });
@@ -119,8 +120,24 @@ export async function handleCallback(req, res) {
         if (req.method === 'POST') {
             return res.send('OK');
         } else {
-            const redirectUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
-            return res.redirect(`${redirectUrl}/?payment=${finalStatus}`);
+            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+            const host = req.get('host');
+            const redirectUrl = `${protocol}://${host}`;
+
+            // Return OK text for gateway, but script for browser
+            return res.send(`
+                <html>
+                    <head><title>Success</title></head>
+                    <body>
+                        OK - Processando...
+                        <script>
+                            setTimeout(() => {
+                                window.location.href = "${redirectUrl}/?payment=${finalStatus}";
+                            }, 500);
+                        </script>
+                    </body>
+                </html>
+            `);
         }
     } catch (error) {
         console.error('Callback error:', error);
@@ -187,10 +204,8 @@ export async function markPaymentSuccess(req, res) {
     try {
         const { id } = req.params;
 
-        const transaction = await Transaction.findOne({
-            _id: id,
-            userId: req.user.id
-        });
+        const query = req.user.isAdmin ? { _id: id } : { _id: id, userId: req.user.id };
+        const transaction = await Transaction.findOne(query);
 
         if (!transaction) {
             return res.status(404).json({ error: 'Transação não encontrada' });
