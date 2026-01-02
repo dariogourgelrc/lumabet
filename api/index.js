@@ -18,8 +18,20 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// Initialize Database
-initializeDatabase();
+// Middleware to ensure database connection
+let dbConnected = false;
+app.use(async (req, res, next) => {
+    if (!dbConnected) {
+        try {
+            await initializeDatabase();
+            dbConnected = true;
+        } catch (error) {
+            console.error('Database connection failed in middleware:', error);
+            return res.status(500).json({ error: 'Erro de conexão com o banco de dados' });
+        }
+    }
+    next();
+});
 
 // API Routes
 app.use('/api/auth', authRoutes);
