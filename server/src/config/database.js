@@ -10,8 +10,15 @@ export async function initializeDatabase() {
         return;
     }
 
+    if (mongoose.connection.readyState >= 1) {
+        return;
+    }
+
     try {
-        await mongoose.connect(mongodbUri);
+        await mongoose.connect(mongodbUri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
         console.log('✅ Connected to MongoDB');
 
         // Check if admin exists

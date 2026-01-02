@@ -17,4 +17,4 @@ transactionSchema.pre('save', function (next) {
     next();
 });
 
-export default mongoose.model('Transaction', transactionSchema);
+export default mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
