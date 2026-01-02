@@ -12,9 +12,8 @@ const transactionSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now }
 });
 
-transactionSchema.pre('save', function (next) {
+transactionSchema.pre('save', function () {
     this.updatedAt = Date.now();
-    next();
 });
 
 export default mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
