@@ -10,6 +10,13 @@ export async function initiatePayment(req, res) {
             return res.status(400).json({ error: 'Valor inválido' });
         }
 
+        // Check DB connection
+        const mongoose = (await import('mongoose')).default;
+        if (mongoose.connection.readyState !== 1) {
+            console.error('Database not connected during payment initiation');
+            return res.status(503).json({ error: 'Banco de dados temporariamente indisponível. Tente novamente em instantes.' });
+        }
+
         // Create pending transaction in MongoDB
         const transaction = await Transaction.create({
             userId,
@@ -48,8 +55,12 @@ export async function initiatePayment(req, res) {
             transactionId: transaction._id
         });
     } catch (error) {
-        console.error('Initiate payment error:', error);
-        res.status(500).json({ error: 'Erro ao iniciar pagamento' });
+        console.error('Initiate payment error details:', error);
+        res.status(500).json({
+            error: 'Erro ao iniciar pagamento',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 }
 

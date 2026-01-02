@@ -14,23 +14,25 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Middleware
+// Basic Middlewares
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Middleware to ensure database connection
-let dbConnected = false;
+// Health check route
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Database initialization middleware (Passive)
 app.use(async (req, res, next) => {
-    if (!dbConnected) {
-        try {
-            await initializeDatabase();
-            dbConnected = true;
-        } catch (error) {
-            console.error('Database connection failed in middleware:', error);
-            return res.status(500).json({ error: 'Erro de conexão com o banco de dados' });
-        }
+    try {
+        await initializeDatabase();
+        next();
+    } catch (error) {
+        console.error('DB Init Middleware Error:', error);
+        res.status(500).json({ error: 'Erro interno no servidor de banco de dados' });
     }
-    next();
 });
 
 // API Routes
