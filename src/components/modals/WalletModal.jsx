@@ -14,6 +14,7 @@ const WalletModal = ({ isOpen, onClose, balance }) => {
     const [paymentUrl, setPaymentUrl] = useState(null);
     const [currentTransactionId, setCurrentTransactionId] = useState(null);
     const [requestStatus, setRequestStatus] = useState(null);
+    const [isChecking, setIsChecking] = useState(false);
 
     const shortcuts = [2000, 5000, 8000, 10000];
 
