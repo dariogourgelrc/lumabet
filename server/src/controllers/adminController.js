@@ -1,28 +1,26 @@
-import db from '../config/database.js';
+import Transaction from '../models/Transaction.js';
+import User from '../models/User.js';
 
 export async function getAllTransactions(req, res) {
     try {
-        await db.read();
+        const transactions = await Transaction.find()
+            .populate('userId', 'name email')
+            .sort({ createdAt: -1 })
+            .limit(100);
 
-        const transactions = db.data.transactions
-            .map(t => {
-                const user = db.data.users.find(u => u.id === t.userId);
-                return {
-                    id: t.id,
-                    type: t.type,
-                    amount: parseFloat(t.amount || 0),
-                    status: t.status,
-                    method: t.method,
-                    paymentId: t.paymentId,
-                    createdAt: t.createdAt,
-                    userName: user?.name || 'Unknown',
-                    userEmail: user?.email || 'Unknown'
-                };
-            })
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 100);
+        const mappedTransactions = transactions.map(t => ({
+            id: t._id,
+            type: t.type,
+            amount: t.amount,
+            status: t.status,
+            method: t.method,
+            paymentId: t.paymentId,
+            createdAt: t.createdAt,
+            userName: t.userId?.name || 'Unknown',
+            userEmail: t.userId?.email || 'Unknown'
+        }));
 
-        res.json(transactions);
+        res.json(mappedTransactions);
     } catch (error) {
         console.error('Get all transactions error:', error);
         res.status(500).json({ error: 'Erro ao buscar transações' });
@@ -31,20 +29,17 @@ export async function getAllTransactions(req, res) {
 
 export async function getAllUsers(req, res) {
     try {
-        await db.read();
+        const users = await User.find()
+            .sort({ createdAt: -1 });
 
-        const users = db.data.users
-            .map(u => ({
-                id: u.id,
-                name: u.name,
-                email: u.email,
-                balance: u.balance,
-                isAdmin: u.isAdmin,
-                createdAt: u.createdAt
-            }))
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        res.json(users);
+        res.json(users.map(u => ({
+            id: u._id,
+            name: u.name,
+            email: u.email,
+            balance: u.balance,
+            isAdmin: u.isAdmin,
+            createdAt: u.createdAt
+        })));
     } catch (error) {
         console.error('Get all users error:', error);
         res.status(500).json({ error: 'Erro ao buscar usuários' });
@@ -53,35 +48,33 @@ export async function getAllUsers(req, res) {
 
 export async function getStats(req, res) {
     try {
-        await db.read();
+        const totalUsers = await User.countDocuments();
 
-        const totalUsers = db.data.users.length;
+        const transactions = await Transaction.find({ status: 'success' });
 
-        const totalDeposits = db.data.transactions
-            .filter(t => t.type === 'deposit' && t.status === 'success')
-            .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const totalDeposits = transactions
+            .filter(t => t.type === 'deposit')
+            .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-        const totalWithdrawals = db.data.transactions
-            .filter(t => t.type === 'withdrawal' && t.status === 'success')
-            .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const totalWithdrawals = transactions
+            .filter(t => t.type === 'withdrawal')
+            .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-        const pendingTransactions = db.data.transactions
-            .filter(t => t.status === 'pending').length;
+        const pendingTransactions = await Transaction.countDocuments({ status: 'pending' });
 
-        const recentTransactions = db.data.transactions
-            .map(t => {
-                const user = db.data.users.find(u => u.id === t.userId);
-                return {
-                    id: t.id,
-                    type: t.type,
-                    amount: parseFloat(t.amount || 0),
-                    status: t.status,
-                    createdAt: t.createdAt,
-                    userName: user?.name || 'Unknown'
-                };
-            })
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 10);
+        const recentTransactionsRaw = await Transaction.find()
+            .populate('userId', 'name')
+            .sort({ createdAt: -1 })
+            .limit(10);
+
+        const recentTransactions = recentTransactionsRaw.map(t => ({
+            id: t._id,
+            type: t.type,
+            amount: t.amount,
+            status: t.status,
+            createdAt: t.createdAt,
+            userName: t.userId?.name || 'Unknown'
+        }));
 
         res.json({
             totalUsers,

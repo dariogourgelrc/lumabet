@@ -1,46 +1,34 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import db from '../config/database.js';
+import User from '../models/User.js';
 
 export async function register(req, res) {
     try {
         const { name, email, password } = req.body;
 
-        // Validate input
         if (!name || !email || !password) {
             return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
         }
 
-        await db.read();
-
-        // Check if user exists
-        const existingUser = db.data.users.find(u => u.email === email);
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: 'Este email já está cadastrado' });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
-        const newUser = {
-            id: db.data.users.length + 1,
+        const newUser = await User.create({
             name,
             email,
             password: hashedPassword,
             balance: 0,
-            isAdmin: false,
-            createdAt: new Date().toISOString()
-        };
+            isAdmin: false
+        });
 
-        db.data.users.push(newUser);
-        await db.write();
-
-        // Generate token
-        const tokenToken = process.env.JWT_SECRET || 'betsim_secret_key_123';
+        const tokenSecret = process.env.JWT_SECRET || 'betsim_secret_key_123';
         const token = jwt.sign(
-            { id: newUser.id, email, isAdmin: false },
-            tokenToken,
+            { id: newUser._id, email: newUser.email, isAdmin: false },
+            tokenSecret,
             { expiresIn: '7d' }
         );
 
@@ -48,11 +36,11 @@ export async function register(req, res) {
             success: true,
             token,
             user: {
-                id: newUser.id,
-                name,
-                email,
-                balance: 0,
-                isAdmin: false
+                id: newUser._id,
+                name: newUser.name,
+                email: newUser.email,
+                balance: newUser.balance,
+                isAdmin: newUser.isAdmin
             }
         });
     } catch (error) {
@@ -65,25 +53,20 @@ export async function login(req, res) {
     try {
         const { email, password } = req.body;
 
-        await db.read();
-
-        // Find user
-        const user = db.data.users.find(u => u.email === email);
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({ error: 'Email ou senha incorretos' });
         }
 
-        // Verify password
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
             return res.status(401).json({ error: 'Email ou senha incorretos' });
         }
 
-        // Generate token
-        const tokenToken = process.env.JWT_SECRET || 'betsim_secret_key_123';
+        const tokenSecret = process.env.JWT_SECRET || 'betsim_secret_key_123';
         const token = jwt.sign(
-            { id: user.id, email: user.email, isAdmin: Boolean(user.isAdmin) },
-            tokenToken,
+            { id: user._id, email: user.email, isAdmin: Boolean(user.isAdmin) },
+            tokenSecret,
             { expiresIn: '7d' }
         );
 
@@ -91,7 +74,7 @@ export async function login(req, res) {
             success: true,
             token,
             user: {
-                id: user.id,
+                id: user._id,
                 name: user.name,
                 email: user.email,
                 balance: user.balance,
@@ -106,15 +89,13 @@ export async function login(req, res) {
 
 export async function getMe(req, res) {
     try {
-        await db.read();
-
-        const user = db.data.users.find(u => u.id === req.user.id);
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ error: 'Usuário não encontrado' });
         }
 
         res.json({
-            id: user.id,
+            id: user._id,
             name: user.name,
             email: user.email,
             balance: user.balance,
