@@ -4,20 +4,19 @@ import User from '../models/User.js';
 export async function initiatePayment(req, res) {
     try {
         const { amount, phoneNumber, method = 'mcx' } = req.body;
+
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ error: 'Usuário não identificado. Faça login novamente.' });
+        }
+
         const userId = req.user.id;
 
         if (!amount || amount <= 0) {
             return res.status(400).json({ error: 'Valor inválido' });
         }
 
-        // Check DB connection
-        const mongoose = (await import('mongoose')).default;
-        if (mongoose.connection.readyState !== 1) {
-            console.error('Database not connected during payment initiation');
-            return res.status(503).json({ error: 'Banco de dados temporariamente indisponível. Tente novamente em instantes.' });
-        }
-
         // Create pending transaction in MongoDB
+        console.log('Creating transaction for user:', userId, 'amount:', amount);
         const transaction = await Transaction.create({
             userId,
             type: 'deposit',
@@ -31,12 +30,12 @@ export async function initiatePayment(req, res) {
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build CulongaPay URL (Using APP_URL for production callback)
-        const backendUrl = process.env.APP_URL || 'http://localhost:3001';
+        // Build CulongaPay URL
+        const backendUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
 
         const params = new URLSearchParams({
             token: '1224',
-            preco: amount,
+            preco: amount.toString(),
             callback: `${backendUrl}/api/payments/callback`,
             idCliente: userId.toString(),
             idProduto: paymentId
@@ -55,11 +54,11 @@ export async function initiatePayment(req, res) {
             transactionId: transaction._id
         });
     } catch (error) {
-        console.error('Initiate payment error details:', error);
+        console.error('Initiate payment detailed error:', error);
+        // We put the details in 'error' so the frontend alert(response.error) shows it
         res.status(500).json({
-            error: 'Erro ao iniciar pagamento',
-            details: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: `Erro técnico: ${error.message}`,
+            details: error.stack
         });
     }
 }
