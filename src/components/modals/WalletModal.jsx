@@ -235,12 +235,49 @@ const WalletModal = ({ isOpen, onClose, balance }) => {
                                             Cancelar
                                         </button>
                                     </div>
-                                    <div className="w-full h-[450px] bg-black/50 rounded-xl overflow-hidden border border-white/10 shadow-inner">
-                                        <iframe
-                                            src={paymentUrl}
-                                            className="w-full h-full"
-                                            title="Pagamento CulongaPay"
-                                        />
+                                    <div className="flex flex-col gap-4">
+                                        <div className="bg-white rounded-xl overflow-hidden h-[400px] border border-white/10">
+                                            <iframe
+                                                src={paymentUrl}
+                                                className="w-full h-full border-none"
+                                                title="Pagamento"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                setIsChecking(true);
+                                                const token = localStorage.getItem('betsim_token');
+                                                try {
+                                                    const statusResponse = await checkPaymentStatus(token, currentTransactionId);
+                                                    if (statusResponse.status === 'success') {
+                                                        // Assuming setStep is a state setter for a step-based flow,
+                                                        // but here we directly set requestStatus to 'success'
+                                                        // and trigger the balance update and modal close.
+                                                        await updateBalance(statusResponse.newBalance || (balance + parseFloat(amount)));
+                                                        setRequestStatus('success');
+                                                        setTimeout(() => {
+                                                            resetDeposit();
+                                                            onClose();
+                                                        }, 2000);
+                                                    } else {
+                                                        alert('Pagamento ainda não detectado. Aguarde um momento.');
+                                                    }
+                                                } catch (err) {
+                                                    console.error('Manual check error:', err);
+                                                    alert('Erro ao verificar pagamento. Tente novamente.');
+                                                } finally {
+                                                    setIsChecking(false);
+                                                }
+                                            }}
+                                            disabled={isChecking}
+                                            className="w-full py-4 bg-primary text-black font-bold rounded-xl hover:bg-opacity-90 transition-all flex items-center justify-center"
+                                        >
+                                            {isChecking ? (
+                                                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                'Já realizei o pagamento'
+                                            )}
+                                        </button>
                                     </div>
                                     <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center gap-3 animate-pulse">
                                         <div className="w-2 h-2 bg-primary rounded-full"></div>

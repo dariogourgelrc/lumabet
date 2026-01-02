@@ -15,8 +15,6 @@ export async function initiatePayment(req, res) {
             return res.status(400).json({ error: 'Valor inválido' });
         }
 
-        // Create pending transaction in MongoDB
-        console.log('Creating transaction for user:', userId, 'amount:', amount);
         const transaction = await Transaction.create({
             userId,
             type: 'deposit',
@@ -26,26 +24,20 @@ export async function initiatePayment(req, res) {
             metadata: { phoneNumber }
         });
 
-        const paymentId = `PAY-${transaction._id}-${Date.now()}`;
+        // Use a shorter, more reliable ID for the payment gateway
+        const paymentId = transaction._id.toString();
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build CulongaPay URL
-        const backendUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
+        // Build CulongaPay URL - Absolute and clean
+        const rawUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
+        const backendUrl = rawUrl.replace(/\/$/, ""); // Remove trailing slash if any
+        const callbackUrl = `${backendUrl}/api/payments/callback`;
 
-        const params = new URLSearchParams({
-            token: '1224',
-            preco: amount.toString(),
-            callback: `${backendUrl}/api/payments/callback`,
-            idCliente: userId.toString(),
-            idProduto: paymentId
-        });
+        console.log('Generating CulongaPay URL with callback:', callbackUrl);
 
-        if (phoneNumber) {
-            params.append('telefone', phoneNumber);
-        }
-
-        const paymentUrl = `https://culonga.com/culongaPay?${params.toString()}`;
+        // Construct manually to ensure order and encoding
+        const paymentUrl = `https://culonga.com/culongaPay?token=1224&preco=${amount}&callback=${encodeURIComponent(callbackUrl)}&idCliente=${userId}&idProduto=${paymentId}`;
 
         res.json({
             success: true,
@@ -122,12 +114,19 @@ export async function getPaymentStatus(req, res) {
             return res.status(404).json({ error: 'Transação não encontrada' });
         }
 
+        let newBalance = undefined;
+        if (transaction.status === 'success') {
+            const user = await User.findById(req.user.id);
+            if (user) newBalance = user.balance;
+        }
+
         res.json({
             id: transaction._id,
             type: transaction.type,
             amount: transaction.amount,
             status: transaction.status,
             method: transaction.method,
+            newBalance,
             createdAt: transaction.createdAt,
             updatedAt: transaction.updatedAt
         });
