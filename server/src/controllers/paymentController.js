@@ -29,15 +29,26 @@ export async function initiatePayment(req, res) {
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build CulongaPay URL - Absolute and clean
+        // Build CulongaPay URL - Using most compatible Angolan parameter names
         const rawUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
-        const backendUrl = rawUrl.replace(/\/$/, ""); // Remove trailing slash if any
+        const backendUrl = rawUrl.replace(/\/$/, "");
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
         console.log('Generating CulongaPay URL with callback:', callbackUrl);
 
-        // Construct manually to ensure order and encoding
-        const paymentUrl = `https://culonga.com/culongaPay?token=1224&preco=${amount}&callback=${encodeURIComponent(callbackUrl)}&idCliente=${userId}&idProduto=${paymentId}`;
+        // Standard Angolan Gateway Parameters: valor, url_callback, idCliente, idProduto
+        const params = new URLSearchParams({
+            token: '1224',
+            valor: amount.toString(), // Some use valor instead of preco
+            preco: amount.toString(), // Keep preco for compatibility
+            url_callback: callbackUrl, // Some use url_callback
+            callback: callbackUrl,    // Keep callback
+            url: callbackUrl,         // Some use url
+            idCliente: userId,
+            idProduto: paymentId
+        });
+
+        const paymentUrl = `https://culonga.com/culongaPay?${params.toString()}`;
 
         res.json({
             success: true,
@@ -57,44 +68,60 @@ export async function initiatePayment(req, res) {
 
 export async function handleCallback(req, res) {
     try {
-        const { estado, idProduto, compra } = req.query;
+        console.log('--- CALLBACK RECEIVED ---');
+        console.log('Method:', req.method);
+        console.log('Query:', req.query);
+        console.log('Body:', req.body);
 
-        console.log('Payment callback received:', { estado, idProduto, compra });
+        // Merge query and body to be safe
+        const data = { ...req.query, ...req.body };
+        const { estado, idProduto, compra } = data;
 
-        if (!idProduto) {
+        // Also check if they use 'status' instead of 'estado' or 'produto' instead of 'idProduto'
+        const callbackStatus = estado || data.status;
+        const paymentId = idProduto || data.produto || data.id_venda;
+
+        console.log('Payment callback received:', { callbackStatus, paymentId, compra });
+
+        if (!paymentId) {
             return res.status(400).send('Missing payment ID');
         }
 
         // Find transaction by paymentId
-        const transaction = await Transaction.findOne({ paymentId: idProduto });
+        const transaction = await Transaction.findOne({ paymentId });
 
         if (!transaction) {
+            console.warn('Transaction not found for ID:', paymentId);
             return res.status(404).send('Transaction not found');
         }
 
         if (transaction.status === 'success') {
-            return res.json({ success: true, message: 'Já processado' });
+            return req.method === 'POST' ? res.send('OK') : res.redirect(`${process.env.APP_URL || ''}/?payment=success`);
         }
 
-        const status = estado === 'true' ? 'success' : 'failed';
-        transaction.status = status;
+        const isSuccess = (callbackStatus === 'true' || callbackStatus === 'success' || callbackStatus === '1');
+        const finalStatus = isSuccess ? 'success' : 'failed';
 
-        if (status === 'success') {
+        transaction.status = finalStatus;
+        transaction.updatedAt = Date.now();
+
+        if (finalStatus === 'success') {
             const user = await User.findById(transaction.userId);
             if (user) {
                 user.balance += transaction.amount;
                 await user.save();
+                console.log(`✅ Balance updated for user ${user.email}: +${transaction.amount}`);
             }
         }
 
         await transaction.save();
 
-        // Redirect to frontend
-        const redirectUrl = process.env.NODE_ENV === 'production'
-            ? `${process.env.APP_URL}/?payment=${status}`
-            : `http://localhost:5173/?payment=${status}&amount=${transaction.amount}`;
-
-        res.redirect(redirectUrl);
+        if (req.method === 'POST') {
+            return res.send('OK');
+        } else {
+            const redirectUrl = process.env.APP_URL || 'https://lumabet.vercel.app';
+            return res.redirect(`${redirectUrl}/?payment=${finalStatus}`);
+        }
     } catch (error) {
         console.error('Callback error:', error);
         res.status(500).send('Error processing callback');

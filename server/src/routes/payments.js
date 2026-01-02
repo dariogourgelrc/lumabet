@@ -11,7 +11,7 @@ import {
 const router = express.Router();
 
 router.post('/initiate', authenticateToken, initiatePayment);
-router.get('/callback', handleCallback);
+router.all('/callback', handleCallback);
 router.get('/status/:id', authenticateToken, getPaymentStatus);
 router.get('/history', authenticateToken, getPaymentHistory);
 router.post('/mark-success/:id', authenticateToken, markPaymentSuccess);
