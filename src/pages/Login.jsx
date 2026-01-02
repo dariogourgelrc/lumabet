@@ -7,17 +7,26 @@ import logo from '../assets/lumabet_logo.png';
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const result = login(email, password);
-        if (result.success) {
-            navigate('/');
-        } else {
-            setError(result.message);
+        setError('');
+        setLoading(true);
+
+        try {
+            const result = await login(email, password);
+            if (result.success) {
+                navigate('/');
+            } else {
+                setError(result.message);
+            }
+        } catch (err) {
+            setError('Erro ao conectar com o servidor');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -68,9 +77,18 @@ const Login = () => {
                         />
                     </div>
 
-                    <button className="w-full bg-primary hover:bg-green-400 text-black font-bold py-4 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20 flex items-center justify-center gap-2 text-lg mt-6">
-                        <LogIn size={20} />
-                        Entrar na Conta
+                    <button
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold py-4 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20 flex items-center justify-center gap-2 text-lg mt-6"
+                    >
+                        {loading ? (
+                            <div className="w-6 h-6 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                        ) : (
+                            <>
+                                <LogIn size={20} />
+                                Entrar na Conta
+                            </>
+                        )}
                     </button>
                 </form>
 

@@ -11,7 +11,7 @@ const Register = () => {
         password: '',
         confirmPassword: ''
     });
-    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { register } = useAuth();
     const navigate = useNavigate();
 
@@ -19,8 +19,9 @@ const Register = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
 
         if (formData.password !== formData.confirmPassword) {
             setError('As senhas não coincidem.');
@@ -32,16 +33,23 @@ const Register = () => {
             return;
         }
 
-        const result = register({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password
-        });
+        setLoading(true);
+        try {
+            const result = await register({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password
+            });
 
-        if (result.success) {
-            navigate('/');
-        } else {
-            setError(result.message);
+            if (result.success) {
+                navigate('/');
+            } else {
+                setError(result.message);
+            }
+        } catch (err) {
+            setError('Erro ao conectar com o servidor');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -62,6 +70,7 @@ const Register = () => {
                             {error}
                         </div>
                     )}
+                    {/* ... rest of the form ... */}
 
                     <div>
                         <label className="text-xs font-bold text-muted uppercase block mb-2">Nome Completo</label>
@@ -116,8 +125,15 @@ const Register = () => {
                         </div>
                     </div>
 
-                    <button className="w-full bg-primary hover:bg-green-400 text-black font-bold py-4 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20 text-lg mt-6">
-                        Criar Conta Grátis
+                    <button
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold py-4 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20 flex items-center justify-center text-lg mt-6"
+                    >
+                        {loading ? (
+                            <div className="w-6 h-6 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                        ) : (
+                            'Criar Conta Grátis'
+                        )}
                     </button>
                     <p className="text-[10px] text-center text-muted">Ao criar conta você concorda com nossos Termos de Serviço.</p>
                 </form>

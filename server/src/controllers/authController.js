@@ -37,9 +37,10 @@ export async function register(req, res) {
         await db.write();
 
         // Generate token
+        const tokenToken = process.env.JWT_SECRET || 'betsim_secret_key_123';
         const token = jwt.sign(
             { id: newUser.id, email, isAdmin: false },
-            process.env.JWT_SECRET,
+            tokenToken,
             { expiresIn: '7d' }
         );
 
@@ -79,9 +80,10 @@ export async function login(req, res) {
         }
 
         // Generate token
+        const tokenToken = process.env.JWT_SECRET || 'betsim_secret_key_123';
         const token = jwt.sign(
             { id: user.id, email: user.email, isAdmin: Boolean(user.isAdmin) },
-            process.env.JWT_SECRET,
+            tokenToken,
             { expiresIn: '7d' }
         );
 
