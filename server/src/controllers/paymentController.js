@@ -70,40 +70,63 @@ export async function initiatePayment(req, res) {
 
 export async function handleCallback(req, res) {
     try {
-        console.log('--- CULONGAPAY CALLBACK ---');
+        console.log('--- CULONGAPAY CALLBACK DATA ---');
         console.log('Method:', req.method);
-        console.log('Query:', req.query);
+        console.log('Raw Query:', JSON.stringify(req.query, null, 2));
+        console.log('Raw Body:', JSON.stringify(req.body, null, 2));
 
-        const { estado, sms, compra } = req.query;
+        const data = { ...req.query, ...req.body };
+        const { estado, sms } = data;
+        let compraData = data.compra;
 
-        // CulongaPay sends data inside 'compra' object or directly in query
-        let paymentId = req.query.idProduto;
-        let callbackStatus = estado;
-
-        if (compra && typeof compra === 'object') {
-            paymentId = paymentId || compra.idProduto;
-            // The doc says 'compra' is an array/object with 4 positions
+        // Try to parse 'compra' if it's a string
+        if (typeof compraData === 'string') {
+            try {
+                compraData = JSON.parse(compraData);
+            } catch (e) {
+                console.warn('⚠️ Could not parse compra string:', compraData);
+            }
         }
 
-        console.log('Resolved Status:', callbackStatus, 'ID:', paymentId);
+        // Extremely aggressive parameter extraction
+        let paymentId = data.idProduto || data.idproduto || data.produto || data.id_venda || data.external_id;
+        let callbackStatus = estado || data.status || data.success;
+
+        if (compraData) {
+            paymentId = paymentId || compraData.idProduto || compraData.idproduto || compraData[1]; // Doc says 2nd position
+            callbackStatus = callbackStatus || (compraData.referencia ? 'true' : undefined);
+            console.log('Parsed compra data:', compraData);
+        }
+
+        console.log('FINAL RESOLVED -> Status:', callbackStatus, 'ID:', paymentId);
 
         if (!paymentId) {
-            console.warn('⚠️ Callback ignored: No idProduto found');
-            return res.status(200).send('OK'); // Always return 200 to satisfy gateway
-        }
-
-        const transaction = await Transaction.findOne({ paymentId });
-
-        if (!transaction) {
-            console.warn('⚠️ Transaction not found:', paymentId);
+            console.error('❌ FATAL: No payment identifier found in callback');
             return res.status(200).send('OK');
         }
 
+        // Find transaction by paymentId
+        let transaction = await Transaction.findOne({ paymentId });
+
+        if (!transaction) {
+            // Backup search: maybe the gateway returned our DB _id directly
+            const transactionById = await Transaction.findById(paymentId).catch(() => null);
+            if (!transactionById) {
+                console.warn('❌ Transaction not found for:', paymentId);
+                return res.status(200).send('OK');
+            }
+            transaction = transactionById;
+        }
+
         if (transaction.status === 'success') {
+            console.log('ℹ️ Transaction already successful:', paymentId);
             return res.redirect('https://lumabet.vercel.app/?payment=success');
         }
 
-        const isSuccess = (callbackStatus === 'true' || callbackStatus === '1');
+        const isSuccess = String(callbackStatus).toLowerCase() === 'true' ||
+            String(callbackStatus) === '1' ||
+            String(callbackStatus).toLowerCase() === 'success';
+
         const finalStatus = isSuccess ? 'success' : 'failed';
 
         transaction.status = finalStatus;
@@ -112,27 +135,40 @@ export async function handleCallback(req, res) {
         if (finalStatus === 'success') {
             const user = await User.findById(transaction.userId);
             if (user) {
-                user.balance += transaction.amount;
+                // Ensure type safety for balance addition
+                const currentBalance = Number(user.balance) || 0;
+                const depositAmount = Number(transaction.amount) || 0;
+                user.balance = currentBalance + depositAmount;
                 await user.save();
-                console.log(`✅ Saldo atualizado: ${user.email} +${transaction.amount}`);
+                console.log(`✅ BALANCE UPDATED: User ${user.email} received ${depositAmount} Kz. New balance: ${user.balance}`);
+            } else {
+                console.error('❌ User not found for transaction:', transaction.userId);
             }
         }
 
         await transaction.save();
+        console.log(`📝 Transaction ${paymentId} updated to ${finalStatus}`);
 
-        // Redirect user back to home
-        return res.redirect(`https://lumabet.vercel.app/?payment=${finalStatus}`);
+        // Handle Response
+        if (req.method === 'POST') {
+            return res.send('OK');
+        } else {
+            // It's a browser redirect
+            return res.redirect(`https://lumabet.vercel.app/?payment=${finalStatus}`);
+        }
 
     } catch (error) {
-        console.error('Fatal Callback Error:', error);
-        // Even on error, return something CulongaPay likes
-        res.status(200).send('OK');
+        console.error('🔥 CRITICAL CALLBACK ERROR:', error);
+        res.status(200).send('OK'); // Fail gracefully for gateway
     }
 }
 
 export async function getPaymentStatus(req, res) {
     try {
         const { id } = req.params;
+
+        // Force no-cache for Vercel
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
         const transaction = await Transaction.findOne({
             _id: id,
@@ -189,6 +225,7 @@ export async function markPaymentSuccess(req, res) {
     try {
         const { id } = req.params;
 
+        // Allow Admin to confirm any transaction, but User only their own
         const query = req.user.isAdmin ? { _id: id } : { _id: id, userId: req.user.id };
         const transaction = await Transaction.findOne(query);
 
@@ -204,7 +241,9 @@ export async function markPaymentSuccess(req, res) {
 
         const user = await User.findById(transaction.userId);
         if (user) {
-            user.balance += transaction.amount;
+            const currentBalance = Number(user.balance) || 0;
+            const depositAmount = Number(transaction.amount) || 0;
+            user.balance = currentBalance + depositAmount;
             await user.save();
         }
 
