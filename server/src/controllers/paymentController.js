@@ -24,23 +24,33 @@ export async function initiatePayment(req, res) {
             metadata: { phoneNumber }
         });
 
-        // Use full ID for maximum compatibility
+        // Use full ID for idProduto as per documentation
         const paymentId = transaction._id.toString();
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build callback URL - Use a stable and absolute URL
+        // Build callback URL - MUST BE ACCESSIBLE TO CULONGAPAY
         const backendUrl = 'https://lumabet.vercel.app';
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
-        console.log('--- INITIATING PAYMENT ---');
-        console.log('Amount:', amount);
-        console.log('Transaction:', transaction._id);
-        console.log('Callback:', callbackUrl);
+        console.log('--- CULONGAPAY INITIATE ---');
+        console.log('token: 1224');
+        console.log('preco:', amount);
+        console.log('callback:', callbackUrl);
+        console.log('idCliente:', userId);
+        console.log('idProduto:', paymentId);
 
-        // Construct URL manually - Old school style is safer for some gateways
-        // token=1224&preco=1000&callback=URL&idCliente=USER&idProduto=PAY
-        const paymentUrl = `https://culonga.com/culongaPay?token=1224&preco=${amount}&valor=${amount}&callback=${encodeURIComponent(callbackUrl)}&url_callback=${encodeURIComponent(callbackUrl)}&idCliente=${transaction.userId}&idProduto=${paymentId}`;
+        // Required Params: token, preco, callback, idCliente, idProduto
+        const params = new URLSearchParams({
+            token: '1224',
+            preco: amount.toString(),
+            callback: callbackUrl,
+            idCliente: userId.toString(),
+            idProduto: paymentId
+        });
+
+        // Redirect to CulongaPay
+        const paymentUrl = `https://culonga.com/culongaPay?${params.toString()}`;
 
         res.json({
             success: true,
@@ -60,38 +70,40 @@ export async function initiatePayment(req, res) {
 
 export async function handleCallback(req, res) {
     try {
-        console.log('--- CALLBACK RECEIVED ---');
+        console.log('--- CULONGAPAY CALLBACK ---');
         console.log('Method:', req.method);
         console.log('Query:', req.query);
-        console.log('Body:', req.body);
 
-        // Merge query and body to be safe
-        const data = { ...req.query, ...req.body };
-        const { estado, idProduto, compra, preco, valor } = data;
+        const { estado, sms, compra } = req.query;
 
-        // Comprehensive parameter matching for multiple CulongaPay versions
-        const callbackStatus = estado || data.status || data.success || (compra ? 'true' : undefined);
-        const paymentId = idProduto || data.idProduto || data.produto || data.id_venda || data.external_id || data.id;
+        // CulongaPay sends data inside 'compra' object or directly in query
+        let paymentId = req.query.idProduto;
+        let callbackStatus = estado;
 
-        console.log('Payment callback resolved:', { callbackStatus, paymentId, compra, amount: preco || valor });
-
-        if (!paymentId) {
-            return res.status(400).send('Missing payment ID');
+        if (compra && typeof compra === 'object') {
+            paymentId = paymentId || compra.idProduto;
+            // The doc says 'compra' is an array/object with 4 positions
         }
 
-        // Find transaction by paymentId
+        console.log('Resolved Status:', callbackStatus, 'ID:', paymentId);
+
+        if (!paymentId) {
+            console.warn('⚠️ Callback ignored: No idProduto found');
+            return res.status(200).send('OK'); // Always return 200 to satisfy gateway
+        }
+
         const transaction = await Transaction.findOne({ paymentId });
 
         if (!transaction) {
-            console.warn('Transaction not found for ID:', paymentId);
-            return res.status(404).send('Transaction not found');
+            console.warn('⚠️ Transaction not found:', paymentId);
+            return res.status(200).send('OK');
         }
 
         if (transaction.status === 'success') {
-            return req.method === 'POST' ? res.send('OK') : res.redirect(`${process.env.APP_URL || ''}/?payment=success`);
+            return res.redirect('https://lumabet.vercel.app/?payment=success');
         }
 
-        const isSuccess = (callbackStatus === 'true' || callbackStatus === 'success' || callbackStatus === '1');
+        const isSuccess = (callbackStatus === 'true' || callbackStatus === '1');
         const finalStatus = isSuccess ? 'success' : 'failed';
 
         transaction.status = finalStatus;
@@ -102,37 +114,19 @@ export async function handleCallback(req, res) {
             if (user) {
                 user.balance += transaction.amount;
                 await user.save();
-                console.log(`✅ Balance updated for user ${user.email}: +${transaction.amount}`);
+                console.log(`✅ Saldo atualizado: ${user.email} +${transaction.amount}`);
             }
         }
 
         await transaction.save();
 
-        if (req.method === 'POST') {
-            return res.send('OK');
-        } else {
-            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-            const host = req.get('host');
-            const redirectUrl = `${protocol}://${host}`;
+        // Redirect user back to home
+        return res.redirect(`https://lumabet.vercel.app/?payment=${finalStatus}`);
 
-            // Return OK text for gateway, but script for browser
-            return res.send(`
-                <html>
-                    <head><title>Success</title></head>
-                    <body>
-                        OK - Processando...
-                        <script>
-                            setTimeout(() => {
-                                window.location.href = "${redirectUrl}/?payment=${finalStatus}";
-                            }, 500);
-                        </script>
-                    </body>
-                </html>
-            `);
-        }
     } catch (error) {
-        console.error('Callback error:', error);
-        res.status(500).send('Error processing callback');
+        console.error('Fatal Callback Error:', error);
+        // Even on error, return something CulongaPay likes
+        res.status(200).send('OK');
     }
 }
 

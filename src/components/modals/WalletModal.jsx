@@ -237,7 +237,7 @@ const WalletModal = ({ isOpen, onClose, balance }) => {
                                         </button>
                                     </div>
                                     <div className="flex flex-col gap-4">
-                                        <div className="bg-white rounded-xl overflow-hidden h-[400px] border border-white/10">
+                                        <div className="bg-white rounded-xl overflow-hidden h-[500px] border border-white/10">
                                             <iframe
                                                 src={paymentUrl}
                                                 className="w-full h-full border-none"
