@@ -24,32 +24,23 @@ export async function initiatePayment(req, res) {
             metadata: { phoneNumber }
         });
 
-        // Create a shorter, more standard paymentId
-        const paymentId = transaction._id.toString().slice(-12).toUpperCase();
+        // Use full ID for maximum compatibility
+        const paymentId = transaction._id.toString();
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build callback URL dynamically
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.get('host');
-        const backendUrl = `${protocol}://${host}`;
+        // Build callback URL - Use a stable and absolute URL
+        const backendUrl = 'https://lumabet.vercel.app';
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
         console.log('--- INITIATING PAYMENT ---');
         console.log('Amount:', amount);
-        console.log('Payment ID:', paymentId);
-        console.log('Callback URL:', callbackUrl);
+        console.log('Transaction:', transaction._id);
+        console.log('Callback:', callbackUrl);
 
-        // Standard Parameters for CulongaPay
-        const params = new URLSearchParams({
-            token: '1224',
-            valor: amount.toString(),
-            callback: callbackUrl,
-            idCliente: userId,
-            idProduto: paymentId
-        });
-
-        const paymentUrl = `https://culonga.com/culongaPay?${params.toString()}`;
+        // Construct URL manually - Old school style is safer for some gateways
+        // token=1224&preco=1000&callback=URL&idCliente=USER&idProduto=PAY
+        const paymentUrl = `https://culonga.com/culongaPay?token=1224&preco=${amount}&valor=${amount}&callback=${encodeURIComponent(callbackUrl)}&url_callback=${encodeURIComponent(callbackUrl)}&idCliente=${transaction.userId}&idProduto=${paymentId}`;
 
         res.json({
             success: true,
@@ -76,13 +67,13 @@ export async function handleCallback(req, res) {
 
         // Merge query and body to be safe
         const data = { ...req.query, ...req.body };
-        const { estado, idProduto, compra } = data;
+        const { estado, idProduto, compra, preco, valor } = data;
 
-        // Also check if they use 'status' instead of 'estado' or 'produto' instead of 'idProduto'
-        const callbackStatus = estado || data.status;
-        const paymentId = idProduto || data.produto || data.id_venda;
+        // Comprehensive parameter matching for multiple CulongaPay versions
+        const callbackStatus = estado || data.status || data.success || (compra ? 'true' : undefined);
+        const paymentId = idProduto || data.idProduto || data.produto || data.id_venda || data.external_id || data.id;
 
-        console.log('Payment callback received:', { callbackStatus, paymentId, compra });
+        console.log('Payment callback resolved:', { callbackStatus, paymentId, compra, amount: preco || valor });
 
         if (!paymentId) {
             return res.status(400).send('Missing payment ID');
