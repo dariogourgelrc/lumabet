@@ -224,7 +224,73 @@ const WalletModal = ({ isOpen, onClose, balance }) => {
                                 </div>
                             )}
 
-                            {/* Payment Iframe */}
+                            {/* Payment Waiting State (No Iframe) */}
+                            {requestStatus === 'external_payment' && (
+                                <div className="space-y-6 animate-in fade-in text-center py-6">
+                                    <div className="w-16 h-16 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-ping"></div>
+                                    </div>
+                                    
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Pagamento Iniciado</h3>
+                                        <p className="text-muted text-sm px-4">
+                                            Uma nova janela foi aberta para você realizar o pagamento. 
+                                            Se não abriu, <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">clique aqui</a>.
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white/5 rounded-xl p-4 mx-2 border border-white/10">
+                                        <p className="text-xs text-muted mb-2">Assim que concluir o pagamento no Multicaixa Express, o sistema confirmará automaticamente.</p>
+                                        <div className="flex items-center justify-center gap-2 text-xs font-mono text-primary">
+                                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                                            Aguardando confirmação...
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 pt-4">
+                                        <button
+                                            onClick={async () => {
+                                                setIsChecking(true);
+                                                const token = localStorage.getItem('betsim_token');
+                                                try {
+                                                    const statusResponse = await checkPaymentStatus(token, currentTransactionId);
+                                                    if (statusResponse.status === 'success') {
+                                                        await updateBalance(statusResponse.newBalance || (balance + parseFloat(amount)));
+                                                        setRequestStatus('success');
+                                                        setTimeout(() => {
+                                                            resetDeposit();
+                                                            onClose();
+                                                        }, 2000);
+                                                    } else {
+                                                        alert('Pagamento ainda não detectado. Aguarde alguns instantes.');
+                                                    }
+                                                } catch (err) {
+                                                    console.error('Manual check error:', err);
+                                                } finally {
+                                                    setIsChecking(false);
+                                                }
+                                            }}
+                                            disabled={isChecking}
+                                            className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all flex items-center justify-center"
+                                        >
+                                            {isChecking ? (
+                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                'Já realizei o pagamento'
+                                            )}
+                                        </button>
+                                        
+                                        <button
+                                            onClick={resetDeposit}
+                                            className="text-muted hover:text-white text-sm py-2"
+                                        >
+                                            Cancelar Operação
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Legacy Payment Iframe (kept just in case logic reverts but hidden via status) */}
                             {requestStatus === 'iframe' && paymentUrl && (
                                 <div className="space-y-4 animate-in fade-in">
                                     <div className="flex justify-between items-center">

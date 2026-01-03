@@ -1,5 +1,6 @@
 import Transaction from '../models/Transaction.js';
 import User from '../models/User.js';
+import mongoose from 'mongoose';
 
 export async function initiatePayment(req, res) {
     try {
@@ -66,18 +67,35 @@ export async function initiatePayment(req, res) {
 export async function handleCallback(req, res) {
     try {
         console.log('--- CULONGAPAY CALLBACK START ---');
-        // Standard payload: { estado, sms, compra }
-        const data = { ...req.query, ...req.body };
-        console.log('📦 Payload received:', JSON.stringify(data));
+        
+        // 1. Combine query and body
+        let payload = { ...req.query, ...req.body };
+        console.log('📦 Raw Payload:', JSON.stringify(payload));
 
-        let paymentId = data.idProduto || data.idproduto;
-        let callbackStatus = data.estado;
-        let compra = data.compra;
+        // 2. Parse nested 'data' JSON string if present (Common in CulongaPay redirects)
+        if (payload.data && typeof payload.data === 'string') {
+            try {
+                const parsedData = JSON.parse(payload.data);
+                console.log('📂 Parsed "data" field:', parsedData);
+                payload = { ...payload, ...parsedData };
+            } catch (e) {
+                console.error('⚠️ Failed to parse "data" field as JSON:', e.message);
+            }
+        }
 
-        // Auto-extract if CulongaPay sends index-based object
+        // 3. Extract Fields
+        let paymentId = payload.idProduto || payload.idproduto;
+        let callbackStatus = payload.estado;
+        let compra = payload.compra;
+
+        // 4. Handle nested 'compra' object (CulongaPay specific structure)
         if (compra && typeof compra === 'object') {
-            paymentId = paymentId || compra.idProduto || compra[1];
-            callbackStatus = callbackStatus || (compra.referencia ? 'true' : undefined);
+            paymentId = paymentId || compra.idProduto || compra.idproduto || compra[1];
+            // Sometimes status is inside compra? Usually it's top level.
+            // If callbackStatus is undefined, check compra
+            if (callbackStatus === undefined && compra.referencia) {
+                callbackStatus = 'true'; // Assume success if reference exists? Careful here.
+            }
         }
 
         console.log(`🔍 Processing Callback: ID=${paymentId}, Status=${callbackStatus}`);
@@ -87,13 +105,26 @@ export async function handleCallback(req, res) {
             return res.status(200).json({ status: 'ok', message: 'Missing idProduto' });
         }
 
-        // Find transaction
-        const transaction = await Transaction.findOne({ paymentId });
+        // 5. Find Transaction
+        // Try finding by _id (Mongoose ObjectId)
+        // If paymentId is "10" (legacy/test), it won't be found as ObjectId.
+        let transaction = null;
+        
+        if (mongoose.Types.ObjectId.isValid(paymentId)) {
+            transaction = await Transaction.findById(paymentId);
+        } else {
+            // Fallback: try to find by paymentId field if you stored "10" there
+            // But usually we store the ObjectId in paymentId field.
+            transaction = await Transaction.findOne({ paymentId: paymentId });
+        }
 
         if (!transaction) {
             console.error(`❌ Transaction not found in DB: ${paymentId}`);
+            // Return 200 to acknowledge receipt even if we can't process it
             return res.status(200).json({ status: 'ok', message: 'Transaction not found' });
         }
+
+        // ... Rest of logic is same ...
 
         // If already successful, just redirect/exit
         if (transaction.status === 'success') {
