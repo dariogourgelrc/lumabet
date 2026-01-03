@@ -30,11 +30,24 @@ export async function initiatePayment(req, res) {
         transaction.paymentId = paymentId;
         await transaction.save();
 
-        // Build callback URL - MUST BE ACCESSIBLE TO CULONGAPAY
-        const backendUrl = 'https://lumabet.vercel.app';
+        // Build callback URL - Dynamic based on environment
+        // Priority: process.env.BACKEND_URL -> constructed from request -> hardcoded fallback
+        let backendUrl = process.env.BACKEND_URL;
+        
+        if (!backendUrl) {
+            // Force HTTPS if not on localhost
+            const protocol = req.get('host').includes('localhost') ? 'http' : 'https';
+            const host = req.get('host');
+            backendUrl = `${protocol}://${host}`;
+        }
+        
+        // Ensure no trailing slash
+        backendUrl = backendUrl.replace(/\/$/, '');
+        
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
         console.log(`🚀 [INIT] ${amount} Kz | ID: ${paymentId}`);
+        console.log(`👉 Callback URL: ${callbackUrl}`);
 
         // Required Params: token, preco, callback, idCliente, idProduto
         const params = new URLSearchParams({

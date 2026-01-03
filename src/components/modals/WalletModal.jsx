@@ -105,10 +105,10 @@ const WalletModal = ({ isOpen, onClose, balance }) => {
                 }, 2000);
             } else {
                 alert('Erro: ' + (result.error || 'Desconhecido'));
-                setRequestStatus('iframe');
+                setRequestStatus('external_payment');
             }
         } catch (error) {
-            setRequestStatus('iframe');
+            setRequestStatus('external_payment');
         }
     };
 
