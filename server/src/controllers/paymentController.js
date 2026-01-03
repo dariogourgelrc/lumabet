@@ -68,6 +68,7 @@ export async function handleCallback(req, res) {
         console.log('--- CULONGAPAY CALLBACK START ---');
         // Standard payload: { estado, sms, compra }
         const data = { ...req.query, ...req.body };
+        console.log('📦 Payload received:', JSON.stringify(data));
 
         let paymentId = data.idProduto || data.idproduto;
         let callbackStatus = data.estado;
@@ -83,7 +84,7 @@ export async function handleCallback(req, res) {
 
         if (!paymentId) {
             console.error('❌ Callback Error: Missing idProduto');
-            return res.status(200).send('OK'); // Always OK to stop retries
+            return res.status(200).json({ status: 'ok', message: 'Missing idProduto' });
         }
 
         // Find transaction
@@ -91,16 +92,22 @@ export async function handleCallback(req, res) {
 
         if (!transaction) {
             console.error(`❌ Transaction not found in DB: ${paymentId}`);
-            return res.status(200).send('OK');
+            return res.status(200).json({ status: 'ok', message: 'Transaction not found' });
         }
 
         // If already successful, just redirect/exit
         if (transaction.status === 'success') {
             console.log(`ℹ️ Transaction ${paymentId} already marked SUCCESS.`);
-            return req.method === 'GET' ? res.redirect('https://lumabet.vercel.app/?payment=success') : res.send('OK');
+            if (req.method === 'GET') {
+                 // Redirect to frontend success page
+                 const frontendUrl = process.env.FRONTEND_URL || 'https://lumabet.vercel.app'; // Fallback needs update if domain changes
+                 return res.redirect(`${frontendUrl}/?payment=success`);
+            }
+            return res.json({ status: 'ok', message: 'Already success' });
         }
 
         // Logic check for success
+        // CulongaPay sends 'true' or '1' or sometimes just status 200 logic
         const isSuccess = String(callbackStatus).toLowerCase() === 'true' || String(callbackStatus) === '1';
 
         if (isSuccess) {
@@ -130,16 +137,19 @@ export async function handleCallback(req, res) {
         await transaction.save();
 
         // Response handling
-        if (req.method === 'POST') {
-            return res.send('OK');
-        } else {
+        if (req.method === 'GET') {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://lumabet.vercel.app';
             const statusUrl = isSuccess ? 'success' : 'failed';
-            return res.redirect(`https://lumabet.vercel.app/?payment=${statusUrl}`);
+            return res.redirect(`${frontendUrl}/?payment=${statusUrl}`);
+        } else {
+            // POST/PUT/etc
+            return res.status(200).json({ status: 'ok' });
         }
 
     } catch (error) {
         console.error('🔥 FATAL CALLBACK ERROR:', error);
-        res.status(200).send('OK');
+        // Always return 200 to prevent gateway retries/errors
+        res.status(200).json({ status: 'error', message: 'Internal error handled' });
     }
 }
 
