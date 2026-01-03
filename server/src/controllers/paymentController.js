@@ -25,7 +25,7 @@ export async function initiatePayment(req, res) {
         });
 
         // Use full ID for idProduto as per documentation
-        const paymentId = transaction._id.toString();
+        const paymentId = String(transaction._id);
         transaction.paymentId = paymentId;
         await transaction.save();
 
@@ -33,12 +33,7 @@ export async function initiatePayment(req, res) {
         const backendUrl = 'https://lumabet.vercel.app';
         const callbackUrl = `${backendUrl}/api/payments/callback`;
 
-        console.log('--- CULONGAPAY INITIATE ---');
-        console.log('token: 1224');
-        console.log('preco:', amount);
-        console.log('callback:', callbackUrl);
-        console.log('idCliente:', userId);
-        console.log('idProduto:', paymentId);
+        console.log(`🚀 [INIT] ${amount} Kz | ID: ${paymentId}`);
 
         // Required Params: token, preco, callback, idCliente, idProduto
         const params = new URLSearchParams({
@@ -70,96 +65,81 @@ export async function initiatePayment(req, res) {
 
 export async function handleCallback(req, res) {
     try {
-        console.log('--- CULONGAPAY CALLBACK DATA ---');
-        console.log('Method:', req.method);
-        console.log('Raw Query:', JSON.stringify(req.query, null, 2));
-        console.log('Raw Body:', JSON.stringify(req.body, null, 2));
-
+        console.log('--- CULONGAPAY CALLBACK START ---');
+        // Standard payload: { estado, sms, compra }
         const data = { ...req.query, ...req.body };
-        const { estado, sms } = data;
-        let compraData = data.compra;
 
-        // Try to parse 'compra' if it's a string
-        if (typeof compraData === 'string') {
-            try {
-                compraData = JSON.parse(compraData);
-            } catch (e) {
-                console.warn('⚠️ Could not parse compra string:', compraData);
-            }
+        let paymentId = data.idProduto || data.idproduto;
+        let callbackStatus = data.estado;
+        let compra = data.compra;
+
+        // Auto-extract if CulongaPay sends index-based object
+        if (compra && typeof compra === 'object') {
+            paymentId = paymentId || compra.idProduto || compra[1];
+            callbackStatus = callbackStatus || (compra.referencia ? 'true' : undefined);
         }
 
-        // Extremely aggressive parameter extraction
-        let paymentId = data.idProduto || data.idproduto || data.produto || data.id_venda || data.external_id;
-        let callbackStatus = estado || data.status || data.success;
-
-        if (compraData) {
-            paymentId = paymentId || compraData.idProduto || compraData.idproduto || compraData[1]; // Doc says 2nd position
-            callbackStatus = callbackStatus || (compraData.referencia ? 'true' : undefined);
-            console.log('Parsed compra data:', compraData);
-        }
-
-        console.log('FINAL RESOLVED -> Status:', callbackStatus, 'ID:', paymentId);
+        console.log(`🔍 Processing Callback: ID=${paymentId}, Status=${callbackStatus}`);
 
         if (!paymentId) {
-            console.error('❌ FATAL: No payment identifier found in callback');
+            console.error('❌ Callback Error: Missing idProduto');
+            return res.status(200).send('OK'); // Always OK to stop retries
+        }
+
+        // Find transaction
+        const transaction = await Transaction.findOne({ paymentId });
+
+        if (!transaction) {
+            console.error(`❌ Transaction not found in DB: ${paymentId}`);
             return res.status(200).send('OK');
         }
 
-        // Find transaction by paymentId
-        let transaction = await Transaction.findOne({ paymentId });
-
-        if (!transaction) {
-            // Backup search: maybe the gateway returned our DB _id directly
-            const transactionById = await Transaction.findById(paymentId).catch(() => null);
-            if (!transactionById) {
-                console.warn('❌ Transaction not found for:', paymentId);
-                return res.status(200).send('OK');
-            }
-            transaction = transactionById;
-        }
-
+        // If already successful, just redirect/exit
         if (transaction.status === 'success') {
-            console.log('ℹ️ Transaction already successful:', paymentId);
-            return res.redirect('https://lumabet.vercel.app/?payment=success');
+            console.log(`ℹ️ Transaction ${paymentId} already marked SUCCESS.`);
+            return req.method === 'GET' ? res.redirect('https://lumabet.vercel.app/?payment=success') : res.send('OK');
         }
 
-        const isSuccess = String(callbackStatus).toLowerCase() === 'true' ||
-            String(callbackStatus) === '1' ||
-            String(callbackStatus).toLowerCase() === 'success';
+        // Logic check for success
+        const isSuccess = String(callbackStatus).toLowerCase() === 'true' || String(callbackStatus) === '1';
 
-        const finalStatus = isSuccess ? 'success' : 'failed';
+        if (isSuccess) {
+            console.log(`✅ Success detected for ${paymentId}. Updating user...`);
 
-        transaction.status = finalStatus;
-        transaction.updatedAt = Date.now();
-
-        if (finalStatus === 'success') {
+            // Find user using the ID stored in the transaction
             const user = await User.findById(transaction.userId);
+
             if (user) {
-                // Ensure type safety for balance addition
-                const currentBalance = Number(user.balance) || 0;
-                const depositAmount = Number(transaction.amount) || 0;
-                user.balance = currentBalance + depositAmount;
+                const oldBalance = Number(user.balance) || 0;
+                const addedAmount = Number(transaction.amount) || 0;
+                user.balance = oldBalance + addedAmount;
                 await user.save();
-                console.log(`✅ BALANCE UPDATED: User ${user.email} received ${depositAmount} Kz. New balance: ${user.balance}`);
+
+                transaction.status = 'success';
+                console.log(`💰 User ${user.email} updated: ${oldBalance} -> ${user.balance}`);
             } else {
-                console.error('❌ User not found for transaction:', transaction.userId);
+                console.error(`❌ User ${transaction.userId} not found for transaction ${paymentId}`);
+                transaction.status = 'failed';
             }
+        } else {
+            console.log(`⚠️ Payment not successful for ${paymentId}: ${callbackStatus}`);
+            transaction.status = 'failed';
         }
 
+        transaction.updatedAt = Date.now();
         await transaction.save();
-        console.log(`📝 Transaction ${paymentId} updated to ${finalStatus}`);
 
-        // Handle Response
+        // Response handling
         if (req.method === 'POST') {
             return res.send('OK');
         } else {
-            // It's a browser redirect
-            return res.redirect(`https://lumabet.vercel.app/?payment=${finalStatus}`);
+            const statusUrl = isSuccess ? 'success' : 'failed';
+            return res.redirect(`https://lumabet.vercel.app/?payment=${statusUrl}`);
         }
 
     } catch (error) {
-        console.error('🔥 CRITICAL CALLBACK ERROR:', error);
-        res.status(200).send('OK'); // Fail gracefully for gateway
+        console.error('🔥 FATAL CALLBACK ERROR:', error);
+        res.status(200).send('OK');
     }
 }
 
